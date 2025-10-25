@@ -3,6 +3,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { importLibrary, setOptions } from "@googlemaps/js-api-loader";
 import { Mic, Square, Upload, MapPin, Play, Pause, FileAudio2, Loader2, CheckCircle2, TriangleAlert, Search, ChevronRight, Trash2 } from "lucide-react";
+import LocationPrompt from "../components/LocationPrompt";
+import Recording from "../components/Recording";
 
 /**
  * 911 Operator Dashboard — Single-file Next.js page
@@ -531,41 +533,27 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {!locationPromptDismissed && (
-          <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-3 flex flex-col gap-2">
-            <div className="flex items-center gap-2 text-sm text-neutral-700">
-              <MapPin className="w-4 h-4" /> Use your current location?
-            </div>
-            <div className="text-xs text-neutral-500">
-              Center the map around your device location to speed up dispatch decisions.
-            </div>
-            <div className="flex flex-wrap gap-2 text-sm">
-              <Button className="bg-black text-white hover:opacity-90" onClick={useCurrentLocation} disabled={locating}>
-                {locating ? <Loader2 className="w-4 h-4 animate-spin" /> : <MapPin className="w-4 h-4" />} Allow location
-              </Button>
-              <Button onClick={() => setLocationPromptDismissed(true)} className="bg-white text-black">
-                Not now
-              </Button>
-            </div>
-            {locationError && <div className="text-xs text-red-600">{locationError}</div>}
-          </div>
-        )}
+        <LocationPrompt
+          useCurrentLocation={useCurrentLocation}
+          locating={locating}
+          locationError={locationError}
+        />
 
         {/* Upload */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Card className="p-4">
             <SectionTitle>Upload Call Recording</SectionTitle>
             <div className="mt-3 flex items-center gap-3">
-              <label className="relative inline-flex items-center">
+              <label className="relative inline-flex items-center cursor-pointer">
                 <input
                   type="file"
                   accept="audio/*"
                   className="hidden"
                   onChange={handleUploadInput}
                 />
-                <Button className="bg-black text-white hover:opacity-90">
+                <span className="inline-flex items-center gap-2 rounded-2xl px-4 py-2 shadow-sm border border-neutral-200 hover:shadow transition active:translate-y-[1px] bg-black text-white hover:opacity-90">
                   <Upload className="w-4 h-4" /> Choose file
-                </Button>
+                </span>
               </label>
               {uploadingId && (
                 <div className="flex items-center gap-2 text-sm text-neutral-600">
