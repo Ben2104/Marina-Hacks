@@ -597,67 +597,77 @@ export default function DashboardPage() {
               <div className="text-sm text-neutral-500">No calls yet.</div>
             )}
             {incidents.map((inc) => (
-              <Card key={inc.id} className="p-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 text-sm">
-                      <span className="font-semibold text-black">#{inc.id}</span>
-                      <span className="text-neutral-500">{new Date(inc.createdAt || Date.now()).toLocaleString()}</span>
-                      {inc.status === "processing" && (
-                        <span className="inline-flex items-center gap-1 text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full text-xs">
-                          <Loader2 className="w-3 h-3 animate-spin" /> Processing
-                        </span>
-                      )}
-                      {inc.status === "needs_confirmation" && (
-                        <span className="inline-flex items-center gap-1 text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full text-xs">
-                          <TriangleAlert className="w-3 h-3" /> Needs confirmation
-                        </span>
-                      )}
-                      {inc.status === "done" && (
-                        <span className="inline-flex items-center gap-1 text-green-700 bg-green-100 px-2 py-0.5 rounded-full text-xs">
-                          <CheckCircle2 className="w-3 h-3" /> Parsed
-                        </span>
-                      )}
-                    </div>
-                    <div className="mt-2 text-sm">
-                      <div>
-                        <span className="text-neutral-500">Type:</span> <span className={inc.emergencyType ? "" : "text-black"}>{inc.emergencyType || "Unknown"}</span>
-                        {typeof inc.confidence === "number" && (
-                          <span className="ml-2 text-black">({Math.round((inc.confidence || 0) * 100)}%)</span>
-                        )}
-                      </div>
-                        <div className="truncate">
-                        <span className="text-neutral-500">Transcript:</span> <span className="text-black">{inc.transcript || "—"}</span>
-                        </div>
-                        <div>
-                        <span className="text-neutral-500">Location:</span>{" "}
-                        {inc.location ? (
-                          <>
-                          <span className="text-black">{inc.location.address || `${inc.location.lat.toFixed(5)}, ${inc.location.lng.toFixed(5)}`}</span>
-                          </>
-                        ) : (
-                          <span className="text-black">—</span>
-                        )}
-                        </div>
-                      {inc.flags && (
-                        <div className="text-xs text-neutral-600 mt-1">
-                          {inc.flags.brokenAccent && <span className="mr-2">• Possible accent</span>}
-                          {inc.flags.intoxicated && <span className="mr-2">• Possible intoxication</span>}
-                          {inc.flags.suspectedSwatting && <span className="mr-2">• Possible fake call</span>}
-                        </div>
-                      )}
-                    </div>
+              <Card key={inc.id} className="p-3 relative">
+                {/* Status badge in top-right corner */}
+                <div className="absolute top-3 right-3">
+                  {inc.status === "processing" && (
+                    <span className="inline-flex items-center gap-1 text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full text-xs">
+                      <Loader2 className="w-3 h-3 animate-spin" /> Processing
+                    </span>
+                  )}
+                  {inc.status === "needs_confirmation" && (
+                    <span className="inline-flex items-center gap-1 text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full text-xs">
+                      <TriangleAlert className="w-3 h-3" /> Needs confirmation
+                    </span>
+                  )}
+                  {inc.status === "done" && (
+                    <span className="inline-flex items-center gap-1 text-green-700 bg-green-100 px-2 py-0.5 rounded-full text-xs">
+                      <CheckCircle2 className="w-3 h-3" /> Parsed
+                    </span>
+                  )}
+                </div>
+
+                {/* Card content */}
+                <div className="pr-32">
+                  <div className="flex items-center gap-2 text-sm mb-2">
+                    <span className="font-semibold text-black">#{inc.id}</span>
+                    <span className="text-neutral-500">{new Date(inc.createdAt || Date.now()).toLocaleString()}</span>
                   </div>
-                  <div className="flex flex-col gap-2 items-end">
-                    <Button className="text-black" onClick={() => { focusIncidentLocation(inc); setSelectedIncident(inc); }}>
-                      <MapPin className="w-4 h-4" /> View on map
-                    </Button>
-                    {cpuMode && inc.status === "needs_confirmation" && (
-                      <Button className="bg-black text-white" onClick={() => confirmIncident(inc.id)}>
-                        Confirm & Mark
-                      </Button>
+                  
+                  <div className="text-sm space-y-1">
+                    <div>
+                      <span className="text-neutral-500">Type:</span> <span className="text-black">{inc.emergencyType || "Unknown"}</span>
+                      {typeof inc.confidence === "number" && (
+                        <span className="ml-2 text-black">({Math.round((inc.confidence || 0) * 100)}%)</span>
+                      )}
+                    </div>
+                    <div className="truncate">
+                      <span className="text-neutral-500">Transcript:</span> <span className="text-black">{inc.transcript || "—"}</span>
+                    </div>
+                    <div>
+                      <span className="text-neutral-500">Location:</span>{" "}
+                      {inc.location ? (
+                        <span className="text-black">{inc.location.address || `${inc.location.lat.toFixed(5)}, ${inc.location.lng.toFixed(5)}`}</span>
+                      ) : (
+                        <span className="text-black">—</span>
+                      )}
+                    </div>
+                    {inc.flags && (
+                      <div className="text-xs text-neutral-600 mt-1">
+                        {inc.flags.brokenAccent && <span className="mr-2">• Possible accent</span>}
+                        {inc.flags.intoxicated && <span className="mr-2">• Possible intoxication</span>}
+                        {inc.flags.suspectedSwatting && <span className="mr-2">• Possible fake call</span>}
+                      </div>
                     )}
                   </div>
+                </div>
+
+                {/* Action buttons at bottom */}
+                <div className="mt-3 flex gap-2">
+                  <Button 
+                    className="flex-1 justify-center text-black" 
+                    onClick={() => { focusIncidentLocation(inc); setSelectedIncident(inc); }}
+                  >
+                    <MapPin className="w-4 h-4" /> View on map
+                  </Button>
+                  {cpuMode && inc.status === "needs_confirmation" && (
+                    <Button 
+                      className="flex-1 justify-center bg-black text-white" 
+                      onClick={() => confirmIncident(inc.id)}
+                    >
+                      Confirm & Mark
+                    </Button>
+                  )}
                 </div>
               </Card>
             ))}

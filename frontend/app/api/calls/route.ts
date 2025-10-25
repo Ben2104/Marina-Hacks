@@ -22,22 +22,29 @@ async function processLocationJob(id: string, buffer: Buffer, filename: string, 
 
     const payload = await response.json();
     console.log("Location job payload:", payload);
+    
+    // Handle different field name variations from backend
+    const lat = payload?.lat ? parseFloat(payload.lat) : 
+                payload?.latitude ? (typeof payload.latitude === "number" ? payload.latitude : parseFloat(payload.latitude)) : null;
+    const lng = payload?.long ? parseFloat(payload.long) : 
+                payload?.longitude ? (typeof payload.longitude === "number" ? payload.longitude : parseFloat(payload.longitude)) : null;
+    
     const location =
-      typeof payload?.latitude === "number" && typeof payload?.longitude === "number"
+      lat !== null && lng !== null && !isNaN(lat) && !isNaN(lng)
         ? {
-            lat: payload.latitude,
-            lng: payload.longitude,
-            address: payload.address || payload.location || undefined,
+            lat,
+            lng,
+            address: payload?.Address || payload?.address || payload?.location || undefined,
           }
         : null;
 
     store.set(id, {
       ...(store.get(id) || { id, createdAt: new Date().toISOString() }),
       id,
-      status: "done",
+      status: "needs_confirmation",
       createdAt: store.get(id)?.createdAt || new Date().toISOString(),
-      emergencyType: payload?.type_of_emergency || "Unknown",
-      transcript: payload?.transcript || store.get(id)?.transcript,
+      emergencyType: payload?.Incident || payload?.type_of_emergency || "Unknown",
+      transcript: payload?.transcript || `Emergency at ${payload?.Address || payload?.address || 'unknown location'}`,
       location,
       notes: payload?.location,
     });
