@@ -20,6 +20,9 @@ class EmergencyDetails(BaseModel):
     type_of_emergency: Category
     location: str 
     address: Optional[str]
+    longitude: float
+    latitude: float
+
 
 
 def get_location(call_txt: str) -> EmergencyDetails:
