@@ -4,7 +4,6 @@ from faster_whisper import WhisperModel
 import os
 import threading
 import sys
-import termios
 import tty
 
 from example import get_response
