@@ -6,9 +6,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-
 def extract_event(audio_file):
-    model = WhisperModel("small.en", compute_type="int8_float16")
+    model = WhisperModel("small.en", compute_type="float32")
     segments, info = model.transcribe(
         audio_file,
         vad_filter=True,
@@ -56,3 +55,4 @@ def parse_event(event):
         "lat": f'{loc["lat"]}',
         "long": f'{loc["lng"]}',
     }
+
