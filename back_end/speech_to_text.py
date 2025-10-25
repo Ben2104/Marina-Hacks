@@ -13,7 +13,7 @@ start = int(time.time())
 
 model = WhisperModel("small.en", compute_type="int8_float16")
 segments, info = model.transcribe(
-    r"C:\Users\syngu\Downloads\CSULB\MarinaHack\Marina-Hacks\back_end\examples\audio.wav",
+    r"C:\Users\syngu\Downloads\CSULB\MarinaHack\Marina-Hacks\back_end\audio.wav",
     vad_filter=True,
     beam_size=1,
     temperature=0.0,
@@ -21,7 +21,6 @@ segments, info = model.transcribe(
 )
 input = "".join(s.text for s in segments)
 
-print(input)
 
 genai.configure(api_key=api_key)
 model = genai.GenerativeModel("gemini-2.5-flash")
@@ -39,7 +38,6 @@ Input: {input}
 """
 ).text
 
-print(response)
 
 re = re.compile(
     r"""(?<=^Address:).*|
@@ -63,5 +61,5 @@ event = {
 }
 end = int(time.time())
 
-print(f"Time taken to sparse {end-start} seconds")
-print(event)
+with open("output.json", "w") as file:
+    json.dump(event, file)
