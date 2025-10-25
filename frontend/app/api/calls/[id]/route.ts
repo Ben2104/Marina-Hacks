@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
+import { getStore } from "../../_lib/store";
 
-const store = (global as any).__CALLS_STORE || new Map();
+const store = getStore();
 
-export const GET = async (_req: Request, { params }: { params: { id: string } }) => {
-  const { id } = params;
+export const GET = async (_req: Request, context: { params: Promise<{ id: string }> }) => {
+  const { id } = await context.params;
   const entry = store.get(id);
   if (!entry) {
     return NextResponse.json({ id, status: "processing" });

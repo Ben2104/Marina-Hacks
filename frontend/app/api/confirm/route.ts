@@ -1,28 +1,28 @@
 import { NextResponse } from "next/server";
+import { getStore } from "../_lib/store";
 
-type IncidentPayload = {
-  id: string;
-  status: "done";
-  confirmedAt: string;
-  notes?: string;
-};
+const store = getStore();
 
 export async function POST(req: Request) {
   const { id } = await req.json();
 
   if (!id) {
-    return NextResponse.json(
-      { error: "Missing incident id" },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: "Missing incident id" }, { status: 400 });
   }
 
-  const payload: IncidentPayload = {
-    id,
+  const existing = store.get(id);
+
+  if (!existing) {
+    return NextResponse.json({ error: "Incident not found" }, { status: 404 });
+  }
+
+  const updated = {
+    ...existing,
     status: "done",
     confirmedAt: new Date().toISOString(),
-    notes: "Stub confirmation payload",
   };
 
-  return NextResponse.json(payload);
+  store.set(id, updated);
+
+  return NextResponse.json(updated);
 }
