@@ -31,7 +31,7 @@ def parse_event(event):
     3. Output only in this format (keep plain text, no extra styling):
 
     Address: 
-    Incident:
+    Incident: ENUM(Crime, Medical, Fire, Non-emergency):
 
     Input: {event}
     """
