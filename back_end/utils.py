@@ -53,7 +53,7 @@ def parse_event(event):
 
     if response:
         loc = response[0]["geometry"]["location"]
-        results = {
+        result = {
             "Address": f'{response[0]["formatted_address"]}',
             "Incident": f"{matches[1].strip()}",
             "lat": f'{loc["lat"]}',
