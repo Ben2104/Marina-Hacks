@@ -1,21 +1,7 @@
 from fastapi import FastAPI, UploadFile, File
 from utils import extract_event, parse_event
 from pathlib import Path
-import os
-
-# try:
-#     os.add_dll_directory(
-#         r"C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.4\bin"
-#     )
-#     os.add_dll_directory(
-#         r"C:\tools\cudnn\bin"
-#     )  # folder that contains cudnn_ops64_9.dll
-# except Exception as e:
-#     print("Warning: add_dll_directory failed:", e)
-# import asyncio
-
-# from models.api import get_location
-# from models.SpeechToText import SpeechToText
+import os, time, io
 
 app = FastAPI()
 
@@ -41,15 +27,15 @@ def read_root():
 
 @app.post("/location")
 async def get_event(file: UploadFile = File(...)):
-    # os.path.join(os.getcwd(), "audio", "audio.wav")
-    dest = Path(os.path.join(os.getcwd(), "audio", "audio.wav"))
+    start = int(time.time())
 
-    #Stream to disk (efficient for large files)
-    with dest.open("wb") as f:
-        while chunk := await file.read(1024 * 1024):  # 1 MB chunks
-            f.write(chunk)
+    data = await file.read()
+    audio_bytes = io.BytesIO(data)
 
-    event = extract_event(dest)
+    event = extract_event(audio_bytes)
     parsed_event = parse_event(event)
+    end = int(time.time())
 
+    parsed_event['Response_time']= end-start
+    
     return parsed_event

@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 def extract_event(audio_file):
-    model = WhisperModel("small.en", compute_type="float32")
+    model = WhisperModel("small.en", compute_type="int8_float16")
     segments, info = model.transcribe(
         audio_file,
         vad_filter=True,
@@ -31,7 +31,7 @@ def parse_event(event):
     3. Output only in this format (keep plain text, no extra styling):
 
     Address: 
-    Incident: ENUM(Crime, Medical, Fire, Non-emergency):
+    Incident: Crime| Medical| Fire| Non-emergency:
 
     Input: {event}
     """
