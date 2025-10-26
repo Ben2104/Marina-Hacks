@@ -9,7 +9,7 @@ load_dotenv()
 
 def extract_event(audio_file):
     compute_type = "int8_float16" if torch.cuda.is_available() else "float32"
-    model = WhisperModel("small.en", compute_type="int8_float16")
+    model = WhisperModel("small.en", compute_type=compute_type)
     segments, info = model.transcribe(
         audio_file,
         vad_filter=True,
