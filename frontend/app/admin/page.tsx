@@ -3,6 +3,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { importLibrary, setOptions } from "@googlemaps/js-api-loader";
 import { Mic, Square, Upload, MapPin, Play, Pause, FileAudio2, Loader2, CheckCircle2, TriangleAlert, Search, ChevronRight, Trash2 } from "lucide-react";
+import LocationPrompt from "../components/LocationPrompt";
+import Recording from "../components/Recording";
 
 /**
  * 911 Operator Dashboard — Single-file Next.js page
@@ -101,6 +103,9 @@ export default function DashboardPage() {
   const [recorder, setRecorder] = useState<MediaRecorder | null>(null);
   const [audioChunks, setAudioChunks] = useState<Blob[]>([]);
   const [uploadingId, setUploadingId] = useState<string | null>(null);
+  const [selectedUploadName, setSelectedUploadName] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const [cpuMode, setCpuMode] = useState(true); // true = operator must confirm before placing marker
   const [loadingMap, setLoadingMap] = useState(true);
   const [pendingCenter, setPendingCenter] = useState<google.maps.LatLngLiteral | null>(null);
@@ -355,14 +360,56 @@ export default function DashboardPage() {
     setIsRecording(false);
   };
 
-  const uploadBlob = async (blob: Blob, filename = `call-${Date.now()}.webm`) => {
-    const form = new FormData();
-    form.append("file", blob, filename);
-    const res = await fetch("/api/calls", { method: "POST", body: form });
-    if (!res.ok) throw new Error("Upload failed");
-    const { id } = await res.json();
-    setUploadingId(id);
-    pollJob(id);
+  // Upload with progress reporting (uses XHR to provide upload progress)
+  const uploadBlob = (blob: Blob, filename = `call-${Date.now()}.webm`) => {
+    return new Promise<{ id: string }>((resolve, reject) => {
+      setUploadError(null);
+      setSelectedUploadName(filename);
+      setUploadProgress(0);
+
+      const form = new FormData();
+      form.append("file", blob, filename);
+
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", "/api/calls");
+
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) {
+          const p = Math.round((e.loaded / e.total) * 100);
+          setUploadProgress(p);
+        }
+      };
+
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            const data = JSON.parse(xhr.responseText);
+            const id = data.id as string;
+            setUploadingId(id);
+            setUploadProgress(null);
+            setSelectedUploadName(null);
+            pollJob(id);
+            resolve({ id });
+          } catch (err) {
+            setUploadError("Invalid server response");
+            setUploadProgress(null);
+            reject(err);
+          }
+        } else {
+          setUploadError(`Upload failed (${xhr.status})`);
+          setUploadProgress(null);
+          reject(new Error(`Upload failed (${xhr.status})`));
+        }
+      };
+
+      xhr.onerror = () => {
+        setUploadError("Network error during upload");
+        setUploadProgress(null);
+        reject(new Error("Network error"));
+      };
+
+      xhr.send(form);
+    });
   };
 
   const handleUploadInput = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -476,7 +523,7 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="h-[calc(100vh-2rem)] w-full p-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
+    <div className="h-[calc(100vh-2rem)] w-full p-4 grid grid-cols-1 lg:grid-cols-[30%_70%] gap-4">
       {/* Left: Controls */}
       <Card className="p-4 flex flex-col gap-4">
         <div className="flex items-center justify-between">
@@ -486,41 +533,27 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {!locationPromptDismissed && (
-          <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-3 flex flex-col gap-2">
-            <div className="flex items-center gap-2 text-sm text-neutral-700">
-              <MapPin className="w-4 h-4" /> Use your current location?
-            </div>
-            <div className="text-xs text-neutral-500">
-              Center the map around your device location to speed up dispatch decisions.
-            </div>
-            <div className="flex flex-wrap gap-2 text-sm">
-              <Button className="bg-black text-white hover:opacity-90" onClick={useCurrentLocation} disabled={locating}>
-                {locating ? <Loader2 className="w-4 h-4 animate-spin" /> : <MapPin className="w-4 h-4" />} Allow location
-              </Button>
-              <Button onClick={() => setLocationPromptDismissed(true)} className="bg-white text-black">
-                Not now
-              </Button>
-            </div>
-            {locationError && <div className="text-xs text-red-600">{locationError}</div>}
-          </div>
-        )}
+        <LocationPrompt
+          useCurrentLocation={useCurrentLocation}
+          locating={locating}
+          locationError={locationError}
+        />
 
         {/* Upload */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Card className="p-4">
             <SectionTitle>Upload Call Recording</SectionTitle>
             <div className="mt-3 flex items-center gap-3">
-              <label className="relative inline-flex items-center">
+              <label className="relative inline-flex items-center cursor-pointer">
                 <input
                   type="file"
                   accept="audio/*"
                   className="hidden"
                   onChange={handleUploadInput}
                 />
-                <Button className="bg-black text-white hover:opacity-90">
+                <span className="inline-flex items-center gap-2 rounded-2xl px-4 py-2 shadow-sm border border-neutral-200 hover:shadow transition active:translate-y-[1px] bg-black text-white hover:opacity-90">
                   <Upload className="w-4 h-4" /> Choose file
-                </Button>
+                </span>
               </label>
               {uploadingId && (
                 <div className="flex items-center gap-2 text-sm text-neutral-600">
@@ -544,9 +577,13 @@ export default function DashboardPage() {
                   <Square className="w-4 h-4" /> Stop
                 </Button>
               )}
-              <Button onClick={submitRecording} disabled={!audioChunks.length}>
+                <Button 
+                onClick={submitRecording} 
+                disabled={!audioChunks.length}
+                className="bg-white text-black hover:opacity-90"
+                >
                 <FileAudio2 className="w-4 h-4" /> Submit recording
-              </Button>
+                </Button>
             </div>
             <p className="mt-2 text-xs text-neutral-500">Record, then submit for transcription + analysis.</p>
           </Card>
@@ -560,67 +597,77 @@ export default function DashboardPage() {
               <div className="text-sm text-neutral-500">No calls yet.</div>
             )}
             {incidents.map((inc) => (
-              <Card key={inc.id} className="p-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 text-sm">
-                      <span className="font-semibold">#{inc.id}</span>
-                      <span className="text-neutral-500">{new Date(inc.createdAt || Date.now()).toLocaleString()}</span>
-                      {inc.status === "processing" && (
-                        <span className="inline-flex items-center gap-1 text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full text-xs">
-                          <Loader2 className="w-3 h-3 animate-spin" /> Processing
-                        </span>
-                      )}
-                      {inc.status === "needs_confirmation" && (
-                        <span className="inline-flex items-center gap-1 text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full text-xs">
-                          <TriangleAlert className="w-3 h-3" /> Needs confirmation
-                        </span>
-                      )}
-                      {inc.status === "done" && (
-                        <span className="inline-flex items-center gap-1 text-green-700 bg-green-100 px-2 py-0.5 rounded-full text-xs">
-                          <CheckCircle2 className="w-3 h-3" /> Parsed
-                        </span>
-                      )}
-                    </div>
-                    <div className="mt-2 text-sm">
-                      <div>
-                        <span className="text-neutral-500">Type:</span> {inc.emergencyType || "Unknown"}
-                        {typeof inc.confidence === "number" && (
-                          <span className="ml-2 text-neutral-500">({Math.round((inc.confidence || 0) * 100)}%)</span>
-                        )}
-                      </div>
-                      <div className="truncate">
-                        <span className="text-neutral-500">Transcript:</span> {inc.transcript || "—"}
-                      </div>
-                      <div>
-                        <span className="text-neutral-500">Location:</span>{" "}
-                        {inc.location ? (
-                          <>
-                            {inc.location.address || `${inc.location.lat.toFixed(5)}, ${inc.location.lng.toFixed(5)}`}
-                          </>
-                        ) : (
-                          "—"
-                        )}
-                      </div>
-                      {inc.flags && (
-                        <div className="text-xs text-neutral-600 mt-1">
-                          {inc.flags.brokenAccent && <span className="mr-2">• Possible accent</span>}
-                          {inc.flags.intoxicated && <span className="mr-2">• Possible intoxication</span>}
-                          {inc.flags.suspectedSwatting && <span className="mr-2">• Possible fake call</span>}
-                        </div>
-                      )}
-                    </div>
+              <Card key={inc.id} className="p-3 relative">
+                {/* Status badge in top-right corner */}
+                <div className="absolute top-3 right-3">
+                  {inc.status === "processing" && (
+                    <span className="inline-flex items-center gap-1 text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full text-xs">
+                      <Loader2 className="w-3 h-3 animate-spin" /> Processing
+                    </span>
+                  )}
+                  {inc.status === "needs_confirmation" && (
+                    <span className="inline-flex items-center gap-1 text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full text-xs">
+                      <TriangleAlert className="w-3 h-3" /> Needs confirmation
+                    </span>
+                  )}
+                  {inc.status === "done" && (
+                    <span className="inline-flex items-center gap-1 text-green-700 bg-green-100 px-2 py-0.5 rounded-full text-xs">
+                      <CheckCircle2 className="w-3 h-3" /> Parsed
+                    </span>
+                  )}
+                </div>
+
+                {/* Card content */}
+                <div className="pr-32">
+                  <div className="flex items-center gap-2 text-sm mb-2">
+                    <span className="font-semibold text-black">#{inc.id}</span>
+                    <span className="text-neutral-500">{new Date(inc.createdAt || Date.now()).toLocaleString()}</span>
                   </div>
-                  <div className="flex flex-col gap-2 items-end">
-                    <Button className="" onClick={() => { focusIncidentLocation(inc); setSelectedIncident(inc); }}>
-                      <MapPin className="w-4 h-4" /> View on map
-                    </Button>
-                    {cpuMode && inc.status === "needs_confirmation" && (
-                      <Button className="bg-black text-white" onClick={() => confirmIncident(inc.id)}>
-                        Confirm & Mark
-                      </Button>
+                  
+                  <div className="text-sm space-y-1">
+                    <div>
+                      <span className="text-neutral-500">Type:</span> <span className="text-black">{inc.emergencyType || "Unknown"}</span>
+                      {typeof inc.confidence === "number" && (
+                        <span className="ml-2 text-black">({Math.round((inc.confidence || 0) * 100)}%)</span>
+                      )}
+                    </div>
+                    <div className="truncate">
+                      <span className="text-neutral-500">Transcript:</span> <span className="text-black">{inc.transcript || "—"}</span>
+                    </div>
+                    <div>
+                      <span className="text-neutral-500">Location:</span>{" "}
+                      {inc.location ? (
+                        <span className="text-black">{inc.location.address || `${inc.location.lat.toFixed(5)}, ${inc.location.lng.toFixed(5)}`}</span>
+                      ) : (
+                        <span className="text-black">—</span>
+                      )}
+                    </div>
+                    {inc.flags && (
+                      <div className="text-xs text-neutral-600 mt-1">
+                        {inc.flags.brokenAccent && <span className="mr-2">• Possible accent</span>}
+                        {inc.flags.intoxicated && <span className="mr-2">• Possible intoxication</span>}
+                        {inc.flags.suspectedSwatting && <span className="mr-2">• Possible fake call</span>}
+                      </div>
                     )}
                   </div>
+                </div>
+
+                {/* Action buttons at bottom */}
+                <div className="mt-3 flex gap-2">
+                  <Button 
+                    className="flex-1 justify-center text-black" 
+                    onClick={() => { focusIncidentLocation(inc); setSelectedIncident(inc); }}
+                  >
+                    <MapPin className="w-4 h-4" /> View on map
+                  </Button>
+                  {cpuMode && inc.status === "needs_confirmation" && (
+                    <Button 
+                      className="flex-1 justify-center bg-black text-white" 
+                      onClick={() => confirmIncident(inc.id)}
+                    >
+                      Confirm & Mark
+                    </Button>
+                  )}
                 </div>
               </Card>
             ))}
@@ -639,18 +686,18 @@ export default function DashboardPage() {
         <div className="pointer-events-none absolute top-4 left-4 flex flex-col gap-3 w-full max-w-sm">
           <div className="rounded-3xl bg-white border border-neutral-200 shadow-xl p-4 pointer-events-auto">
             <div className="text-xs font-semibold tracking-wide text-neutral-500 uppercase">Manual address</div>
-            <form className="mt-3 flex flex-col gap-3" onSubmit={handleManualLocationSubmit}>
-              <label className="text-xs font-medium text-neutral-500">Address or notes</label>
-              <div className="flex items-center gap-2 rounded-2xl border border-neutral-200 px-3 py-2">
-                <Search className="w-4 h-4 text-neutral-500" />
+            <form className="mt-3 flex flex-col gap-3 text-black" onSubmit={handleManualLocationSubmit}>
+              <label className="text-xs font-medium text-black">Address or notes</label>
+                <div className="flex items-center gap-2 rounded-2xl border border-neutral-200 px-3 py-2">
+                <Search className="w-4 h-4 text-black" />
                 <input
                   type="text"
                   placeholder="123 Main St, Long Beach"
                   value={manualAddress}
                   onChange={(e) => setManualAddress(e.target.value)}
-                  className="flex-1 text-sm focus:outline-none"
+                  className="flex-1 text-sm focus:outline-none placeholder:text-neutral-400"
                 />
-              </div>
+                </div>
               {manualLocationError && <div className="text-xs text-red-600">{manualLocationError}</div>}
               <div className="flex gap-2">
                 <Button className="bg-black text-white hover:opacity-90 flex-1 justify-center" type="submit" disabled={isGeocoding}>
@@ -711,7 +758,7 @@ export default function DashboardPage() {
 
           <div className="rounded-3xl bg-white border border-neutral-200 shadow-xl p-4 pointer-events-auto">
             <div className="flex items-center justify-between">
-              <div className="text-sm font-semibold">Recent pins</div>
+              <div className="text-sm font-semibold text-black">Recent pins</div>
               <span className="text-xs text-neutral-500">Tap to focus</span>
             </div>
             <div className="mt-3 space-y-2">
@@ -727,10 +774,10 @@ export default function DashboardPage() {
                     <MapPin className="w-4 h-4 text-neutral-600" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium truncate">
+                    <div className="text-sm font-medium truncate text-black">
                       {pin.location?.address || `${pin.location?.lat.toFixed(4)}, ${pin.location?.lng.toFixed(4)}`}
                     </div>
-                    <div className="text-xs text-neutral-500 truncate">{pin.emergencyType || "Manual entry"}</div>
+                    <div className="text-xs text-black truncate">{pin.emergencyType || "Manual entry"}</div>
                   </div>
                   <ChevronRight className="w-4 h-4 text-neutral-400" />
                 </button>
@@ -746,29 +793,30 @@ export default function DashboardPage() {
                   <div className="text-xs font-semibold tracking-wide text-neutral-500 uppercase">Marker details</div>
                   <div className="text-lg font-semibold text-neutral-900">#{selectedIncident.id}</div>
                 </div>
-                <Button className="text-sm" onClick={() => setSelectedIncident(null)}>
+                <Button className="text-sm text-black" onClick={() => setSelectedIncident(null)}>
                   Close
                 </Button>
               </div>
               <div className="mt-3 space-y-2 text-sm">
                 <div>
-                  <span className="text-neutral-500">Address:</span> {selectedIncident.location?.address || "—"}
+                    <span className="text-neutral-500">Address:</span> <span className="text-black">{selectedIncident.location?.address || "—"}</span>
                 </div>
                 <div>
-                  <span className="text-neutral-500">Postal code:</span> {extractPostalCode(selectedIncident.location?.address) || "—"}
+                  <span className="text-neutral-500">Postal code:</span> <span className="text-black">{extractPostalCode(selectedIncident.location?.address) || "—"}</span>
                 </div>
                 <div>
-                  <span className="text-neutral-500">Coordinates:</span>{" "}
+                  <span className="text-neutral-500">Coordinates:</span>{" "} <span className="text-black">
                   {selectedIncident.location
                     ? `${selectedIncident.location.lat.toFixed(5)}, ${selectedIncident.location.lng.toFixed(5)}`
                     : "—"}
+                  </span>
                 </div>
                 <div>
-                  <span className="text-neutral-500">Status:</span> {selectedIncident.status}
+                  <span className="text-neutral-500">Status:</span> <span className="text-black">{selectedIncident.status}</span>
                 </div>
                 {selectedIncident.transcript && (
                   <div>
-                    <span className="text-neutral-500">Notes:</span> {selectedIncident.transcript}
+                    <span className="text-neutral-500">Notes:</span> <span className="text-black">{selectedIncident.transcript}</span>
                   </div>
                 )}
               </div>
