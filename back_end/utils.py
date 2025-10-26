@@ -46,13 +46,16 @@ def parse_event(event):
     matches = pattern.findall(response)
     gmaps = googlemaps.Client(key=os.getenv("GOOGLEMAP_API_KEY"))
     query = matches[0]
-    results = gmaps.geocode(query)
-    loc = results[0]["geometry"]["location"]
-
-    return {
-        "Address": f'{results[0]["formatted_address"]}',
-        "Incident": f"{matches[1].strip()}",
-        "lat": f'{loc["lat"]}',
-        "long": f'{loc["lng"]}',
-    }
+    response = gmaps.geocode(query)
+    result = {}
+    
+    if response:
+        loc = response[0]["geometry"]["location"]
+        results = {
+            "Address": f'{response[0]["formatted_address"]}',
+            "Incident": f"{matches[1].strip()}",
+            "lat": f'{loc["lat"]}',
+            "long": f'{loc["lng"]}',
+        }
+    return result
 
