@@ -3,10 +3,12 @@ import googlemaps
 import re, os
 from faster_whisper import WhisperModel
 from dotenv import load_dotenv
+import torch
 
 load_dotenv()
 
 def extract_event(audio_file):
+    compute_type = "int8_float16" if torch.cuda.is_available() else "float32"
     model = WhisperModel("small.en", compute_type="int8_float16")
     segments, info = model.transcribe(
         audio_file,
@@ -48,7 +50,7 @@ def parse_event(event):
     query = matches[0]
     response = gmaps.geocode(query)
     result = {}
-    
+
     if response:
         loc = response[0]["geometry"]["location"]
         results = {
